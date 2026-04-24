@@ -1,0 +1,43 @@
+name: Security Audit CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Hardhat tests
+        run: npx hardhat test
+
+      - name: Run Slither analysis
+        run: |
+          pip install slither-analyzer
+          python scripts/run_audit.py contracts/SecureBank.sol > reports/ci-audit.json
+          cat reports/ci-audit.json
+
+      - name: Fail if critical findings
+        run: |
+          NEEDS_ALERT=$(python -c "
+          import json, sys
+          d = json.load(open('reports/ci-audit.json'))
+          print(d.get('needs_alert', False))
+          ")
+          if [ "$NEEDS_ALERT" = "True" ]; then
+            echo "CRITICAL or HIGH findings detected — blocking merge"
+            exit 1
+          fi

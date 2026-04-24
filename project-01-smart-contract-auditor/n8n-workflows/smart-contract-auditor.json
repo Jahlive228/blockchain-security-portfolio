@@ -1,0 +1,111 @@
+{
+  "name": "Smart Contract Security Auditor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "audit-contract",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8765/audit",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contract",
+              "value": "={{ $json.body.contract }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Run Slither Audit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needs_alert }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Has Critical or High?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst critical = data.findings.filter(f => f.severity === 'CRITICAL');\nconst high = data.findings.filter(f => f.severity === 'HIGH');\n\nconst lines = [\n  `SECURITY ALERT — ${data.contract}`,\n  `Time: ${data.timestamp}`,\n  ``,\n  `CRITICAL: ${data.summary.CRITICAL} | HIGH: ${data.summary.HIGH} | MEDIUM: ${data.summary.MEDIUM}`,\n  ``,\n  `--- CRITICAL FINDINGS ---`,\n  ...critical.map(f => `[${f.detector}] ${f.location}\\n${f.description.slice(0, 200)}...`),\n  ``,\n  `--- HIGH FINDINGS ---`,\n  ...high.map(f => `[${f.detector}] ${f.location}\\n${f.description.slice(0, 200)}...`),\n];\n\nreturn [{ json: { ...data, alert_message: lines.join('\\n') } }];"
+      },
+      "name": "Format Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn [{\n  json: {\n    contract: data.contract,\n    timestamp: data.timestamp,\n    status: 'CLEAN',\n    total_findings: data.total,\n    summary: data.summary\n  }\n}];"
+      },
+      "name": "Format Clean Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "name": "Respond Alert",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "name": "Respond Clean",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 420]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [[{ "node": "Run Slither Audit", "type": "main", "index": 0 }]]
+    },
+    "Run Slither Audit": {
+      "main": [[{ "node": "Has Critical or High?", "type": "main", "index": 0 }]]
+    },
+    "Has Critical or High?": {
+      "main": [
+        [{ "node": "Format Alert", "type": "main", "index": 0 }],
+        [{ "node": "Format Clean Report", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Alert": {
+      "main": [[{ "node": "Respond Alert", "type": "main", "index": 0 }]]
+    },
+    "Format Clean Report": {
+      "main": [[{ "node": "Respond Clean", "type": "main", "index": 0 }]]
+    }
+  }
+}
