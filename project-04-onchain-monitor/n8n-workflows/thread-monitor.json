@@ -1,0 +1,109 @@
+{
+  "name": "Threat Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "threat-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.severity }}",
+              "value2": "CRITICAL"
+            }
+          ]
+        }
+      },
+      "name": "Is Critical?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json.body;\nreturn [{ json: { ...d, discord_payload: d.discord_payload } }];"
+      },
+      "name": "Prepare Critical",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json.body;\nreturn [{ json: { ...d, discord_payload: d.discord_payload } }];"
+      },
+      "name": "Prepare High",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/webhooks/XXXX/YYYY",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=",
+              "value": "={{ JSON.stringify($json.discord_payload) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Discord Critical",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/webhooks/XXXX/YYYY",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=",
+              "value": "={{ JSON.stringify($json.discord_payload) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Discord High",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\": \"ok\"}"
+      },
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger":  { "main": [[{ "node": "Is Critical?",     "type": "main", "index": 0 }]] },
+    "Is Critical?":     { "main": [[{ "node": "Prepare Critical", "type": "main", "index": 0 }], [{ "node": "Prepare High", "type": "main", "index": 0 }]] },
+    "Prepare Critical": { "main": [[{ "node": "Discord Critical", "type": "main", "index": 0 }]] },
+    "Prepare High":     { "main": [[{ "node": "Discord High",     "type": "main", "index": 0 }]] },
+    "Discord Critical": { "main": [[{ "node": "Respond",          "type": "main", "index": 0 }]] },
+    "Discord High":     { "main": [[{ "node": "Respond",          "type": "main", "index": 0 }]] }
+  }
+}
