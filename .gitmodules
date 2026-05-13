@@ -1,0 +1,3 @@
+[submodule "project-04-onchain-monitor/lib/forge-std"]
+	path = project-04-onchain-monitor/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
